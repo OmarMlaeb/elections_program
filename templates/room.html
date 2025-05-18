@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Room {{ room_id }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        table, th, td { border: 1px solid #888; border-collapse: collapse; }
+        th, td { padding: 8px; text-align: center; }
+        .stats { margin-bottom: 20px; }
+
+        .action-button {
+            padding: 8px 16px;
+            background-color: white;
+            color: black;
+            border: 1px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-button:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+    
+        /* Success message (vote) */
+        .success {
+            color: green;
+            font-weight: bold;
+            background-color: #e0f7e9;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+    
+        /* Error message (unvote) */
+        .error {
+            color: red;
+            font-weight: bold;
+            background-color: #fde2e2;
+            padding: 10px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+
+        .highlight {
+            outline: 2px solid #007acc; /* or border if you prefer */
+            box-shadow: 0 0 5px #007acc;
+        }
+
+        .duplicate {
+            background-color: #ffdede !important;
+        }
+
+        .row-color-0 { background-color: #ffffff; }   /* Clean White */
+        .row-color-1 { background-color: #f0f4ff; }   /* Gentle Blue-Tint */
+        .row-color-2 { background-color: #fef6e4; }   /* Light Beige-Yellow */
+        .row-color-3 { background-color: #e8f5e9; }   /* Soft Mint Green */
+        .row-color-4 { background-color: #fce4ec; }   /* Light Rose Pink */
+
+        .custom-dropdown {
+            position: relative;
+            width: 200px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .custom-dropdown .selected {
+            padding: 8px;
+            border: 1px solid #aaa;
+            background-color: white;
+            border-radius: 4px;
+        }
+
+        .custom-dropdown .options {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background-color: white;
+            border: 1px solid #aaa;
+            border-top: none;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+        }
+
+        .custom-dropdown.open .options {
+            display: block;
+        }
+
+        .custom-dropdown .option {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            gap: 8px;
+            cursor: pointer;
+        }
+
+        .custom-dropdown .option:hover {
+            background-color: #f0f0f0;
+        }
+
+        .custom-dropdown .option input[type="checkbox"] {
+            margin: 0;
+            transform: scale(1.1);
+        }
+    </style>
+    
+</head>
+
+<!-- Custom Confirm Modal -->
+<div id="confirmModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:9999;">
+    <div style="background:#fff; padding:20px; max-width:400px; margin:100px auto; border-radius:8px; text-align:center;">
+        <p style="font-size:18px; color:#c00;">⚠️ هل أنت متأكد أنك تريد حذف هذا السجل؟</p>
+        <div style="margin-top:20px;">
+            <button id="confirmYes" style="background-color:red; color:white; padding:8px 16px; border:none; border-radius:4px; cursor: pointer;">نعم، احذف</button>
+            <button id="confirmNo" style="margin-right:10px; background-color:#ccc; padding:8px 16px; border:none; border-radius:4px; cursor: pointer;">إلغاء</button>
+        </div>
+    </div>
+</div>
+
+<body>
+
+   <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+        <button onclick="location.reload()" class="action-button">🔄 تحديث الآن</button>
+
+        {% if role == "admin" %}
+            <a href="{{ url_for('dashboard') }}">
+                <button class="action-button">📊 العودة إلى لوحة التحكم</button>
+            </a>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}">
+            <button class="action-button">🚪 تسجيل الخروج</button>
+        </a>
+    </div>
+
+    {% if session.get("role") == "room" and session.get("room_ids")|length > 1 %}
+        <div style="margin-bottom: 20px; display: flex; flex-wrap: wrap; gap: 10px;">
+            <strong>🔁 الانتقال إلى غرفة أخرى:</strong>
+            {% for rid in session.get("room_ids") %}
+                {% if rid != room_id %}
+                    <a href="{{ url_for('room_view', room_id=rid) }}">
+                        <button class="action-button">
+                            الغرفة رقم {{ rid }}
+                        </button>
+                    </a>
+                {% endif %}
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <h2>غرفة رقم {{ room_id }}</h2>
+
+    <div class="stats">
+        <p>الإجمالي: {{ total }}</p>
+        <p>صوّت: {{ voted }}</p>
+        <p>نسبة التصويت: {{ percent }}%</p>
+    </div>
+
+    {% if duplicate_count > 0 %}
+        <p style="color: red; font-weight: bold;">
+            ⚠️ هناك {{ duplicate_count }} رقم قيد مكرر في الجدول!
+        </p>
+    {% endif %}
+
+    <h3>البحث المباشر:</h3>
+    <label>بحث بالاسم الثلاثي:</label>
+    <input type="text" id="nameSearch" placeholder="اكتب الاسم..." style="margin-bottom:10px; width: 300px; padding: 5px;">
+    
+    <br>
+    
+    <label>بحث برقم القيد:</label>
+    <input type="text" id="regSearch" placeholder="اكتب الرقم..." style="margin-bottom:10px; width: 300px; padding: 5px;">
+
+    <br>
+
+    <label>بحث بالاسم:</label>
+    <input type="text" id="firstNameSearch" placeholder="الاسم الأول..." style="margin-bottom:10px; width: 200px; padding: 5px;">
+
+    <label>بحث باسم الأب:</label>
+    <input type="text" id="fatherNameSearch" placeholder="اسم الأب..." style="margin-bottom:10px; width: 200px; padding: 5px;">
+
+    <label>بحث بالعائلة:</label>
+    <input type="text" id="familyNameSearch" placeholder="العائلة..." style="margin-bottom:10px; width: 200px; padding: 5px;">
+
+    
+    {% if message %}
+        <p class="{{ message_class }}">{{ message.replace('\n', '<br>') | safe }}</p>
+    {% endif %}
+
+    <div style="margin: 10px 0;">
+        <input type="checkbox" id="toggleColors">
+        <span>🎨 تمييز صفوف الجدول بالألوان</span>
+    </div>
+
+    <h3>🔍 فلترة حسب:</h3>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-bottom: 20px; align-items: center;">
+        <!-- العائلة -->
+        <div>
+            <label for="familyFilter" style="font-size: 16px;">العائلة:</label>
+            <div class="custom-dropdown" id="familyDropdown">
+                <div class="selected">كل العائلات</div>
+                <div class="options">
+                {% for family in unique_families %}
+                    <div class="option">
+                        <input type="checkbox" class="multi-check" id="family-{{ loop.index }}" value="{{ family }}">
+                        <label for="family-{{ loop.index }}">{{ family }}</label>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- رقم القيد -->
+        <div>
+            <label for="regFilter" style="font-size: 16px;">رقم القيد:</label>
+            <div class="custom-dropdown" id="regDropdown">
+                <div class="selected">كل الأرقام</div>
+                <div class="options" style="max-height: 180px; overflow-y: auto;">
+                {% for reg in unique_registrations %}
+                    <div class="option">
+                        <input type="checkbox" class="reg-check" id="reg-{{ loop.index }}" value="{{ reg }}">
+                        <label for="reg-{{ loop.index }}">{{ reg }}</label>
+                    </div>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- الحالة (Vote Status) -->
+        <div>
+            <label for="voteFilter" style="font-size: 16px;">الحالة:</label>
+            <div class="custom-dropdown" id="voteDropdown">
+                <div class="selected">الكل</div>
+                <div class="options">
+                <div class="option" data-value="">الكل</div>
+                <div class="option" data-value="✅">✅ صوّت</div>
+                <div class="option" data-value="❌">❌ لم يصوّت</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <h3>لائحة الناخبين:</h3>
+    <table id="voterTable">
+        <thead>
+            <tr>
+                {% for key in df[0].keys() %}
+                    <th>{{ key }}</th>
+                {% endfor %}
+                <th>الإجراء</th> <!-- New column for voting button -->
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in df %}
+                {% set row_tuple = row.values() | map('string') | list %}
+                <tr class="row-color-{{ loop.index0 % 5 }} {% if row_tuple | join('|') in duplicate_keys %}duplicate{% endif %}">
+                    <form method="POST">
+                        {% for key, value in row.items() %}
+                            <td data-column="{{ key }}">{{ value }}</td>
+                        {% endfor %}
+                    
+                        <!-- Hidden fields to identify the person and their current vote status -->
+                        <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
+                        <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
+                        <input type="hidden" name="current_status" value="{{ row['صوّت؟'] }}">
+                        <input type="hidden" name="action" value="vote">
+                    
+                        <td>
+                            <button type="submit" style=" cursor: pointer;">
+                                {% if row['صوّت؟'] == '✅' %}
+                                    ❌ إلغاء
+                                {% else %}
+                                    ✅ تصويت
+                                {% endif %}
+                            </button>
+                        </td>
+                    </form>                    
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if duplicate_rows %}
+        <h3 style="color: red;">👥 السجلات المكررة:</h3>
+        <table>
+            <thead>
+                <tr>
+                    {% for key in duplicate_rows[0].keys() %}
+                        <th>{{ key }}</th>
+                    {% endfor %}
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in duplicate_rows %}
+                    <tr style="background-color: #ffdede;">
+                        {% for key, value in row.items() if key != 'row_index' %}
+                            <td>{{ value }}</td>
+                        {% endfor %}
+                        <td>
+                            <form method="POST" class="delete-form" data-fullname="{{ row['الإسم الثلاثي'] }}" data-reg="{{ row['رقم القيد'] }}">
+                                <input type="hidden" name="row_index" value="{{ row['الرقم'] }}">
+                                <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
+                                <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
+                                <button type="button" class="delete-button" style="color:red; cursor: pointer;">🗑️ حذف</button>
+                                <button type="button" class="edit-button" style="color:blue; margin-right: 8px; cursor: pointer;">✏️ تمييز</button>
+                            </form>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <script>
+        const nameInput = document.getElementById("nameSearch");
+        const regInput = document.getElementById("regSearch");
+        const firstNameInput = document.getElementById("firstNameSearch");
+        const fatherNameInput = document.getElementById("fatherNameSearch");
+        const familyNameInput = document.getElementById("familyNameSearch");
+
+        const table = document.getElementById("voterTable").getElementsByTagName("tbody")[0];
+
+        function getCellTextByColumn(row, columnName) {
+            for (let cell of row.cells) {
+                if (cell.dataset.column === columnName) {
+                    return cell.textContent.toLowerCase();
+                }
+            }
+            return "";
+        }
+
+        // Vote dropdown
+        const voteDropdown = document.getElementById("voteDropdown");
+        voteDropdown.querySelectorAll(".option").forEach(option => {
+            option.addEventListener("click", function () {
+                const selected = voteDropdown.querySelector(".selected");
+                selected.textContent = this.textContent;
+                selected.setAttribute("data-value", this.dataset.value);
+                voteDropdown.classList.remove("open");
+                filterTable();
+            });
+        });
+
+        function filterTable() {
+            const nameFilter = nameInput.value.toLowerCase();
+            const regInputFilter = regInput.value.toLowerCase();
+            const firstNameFilter = firstNameInput.value.toLowerCase();
+            const fatherNameFilter = fatherNameInput.value.toLowerCase();
+            const familyNameFilter = familyNameInput.value.toLowerCase();
+
+            const selectedFamilies = Array.from(document.querySelectorAll("#familyDropdown input.multi-check:checked")).map(cb => cb.value);
+            const selectedRegs = Array.from(document.querySelectorAll("#regDropdown input.reg-check:checked")).map(cb => cb.value);
+
+            const selectedVote = document.querySelector("#voteDropdown .selected").dataset.value;
+            const voteFilter = selectedVote;
+
+            const rows = table.getElementsByTagName("tr");
+
+            let visibleIndex = 0;
+
+            for (let row of rows) {
+                const nameCell = getCellTextByColumn(row, "الإسم الثلاثي");
+                const regCell = getCellTextByColumn(row, "رقم القيد");
+                const familyCell = getCellTextByColumn(row, "العائلة");
+                const voteCell = getCellTextByColumn(row, "صوّت؟");
+
+                const parts = nameCell.trim().split(" ");
+
+                const firstName = parts[0] || "";
+                const fatherName = parts[1] || "";
+                const familyName = parts.slice(2).join(" ") || "";
+
+                const matchesFirst = firstNameFilter === "" || firstName.startsWith(firstNameFilter);
+                const matchesFather = fatherNameFilter === "" || fatherName.startsWith(fatherNameFilter);
+                const matchesParsedFamily = familyNameFilter === "" || familyName.startsWith(familyNameFilter);
+
+                // Include your other filters here...
+                const matchesOther = true; // replace with name/vote/reg logic
+
+                const matchesName = nameFilter === "" || nameCell.startsWith(nameFilter);
+                const matchesRegInput = regInputFilter === "" || regCell.startsWith(regInputFilter);
+                const matchesFamilyDropdown = selectedFamilies.length === 0 || selectedFamilies.includes(familyCell.trim());
+                const normalizedVote = voteCell.trim();
+                const matchesVote =
+                    voteFilter === "" || // Show all
+                    (voteFilter === "✅" && normalizedVote === "✅") ||
+                    (voteFilter === "❌" && normalizedVote !== "✅");
+                const matchesRegDropdown = selectedRegs.length === 0 || selectedRegs.includes(regCell.trim());
+
+
+                const isMatch =
+                    matchesName &&
+                    matchesRegInput &&
+                    matchesFirst &&
+                    matchesFather &&
+                    matchesParsedFamily &&
+                    matchesFamilyDropdown &&
+                    matchesVote &&
+                    matchesRegDropdown;
+
+                row.style.display = isMatch ? "" : "none";
+
+                row.classList.forEach(cls => {
+                    if (cls.startsWith("row-color-")) row.classList.remove(cls);
+                });
+
+                if (isMatch) {
+                    if (toggleColorsCheckbox.checked) {
+                        row.classList.add("row-color-" + (visibleIndex % 5));
+                    }                    
+                    visibleIndex++;
+                }
+            }
+        }
+
+        nameInput.addEventListener("input", filterTable);
+        regInput.addEventListener("input", filterTable);
+        firstNameInput.addEventListener("input", filterTable);
+        fatherNameInput.addEventListener("input", filterTable);
+        familyNameInput.addEventListener("input", filterTable);
+
+        function updateSelectedText(dropdownId) {
+            const dropdown = document.getElementById(dropdownId);
+            const selected = dropdown.querySelector(".selected");
+            const checkboxClass = dropdownId === "familyDropdown" ? "multi-check" : "reg-check";
+            const checked = dropdown.querySelectorAll(`input.${checkboxClass}:checked`);
+
+            if (checked.length === 0) {
+                selected.textContent = dropdownId === "familyDropdown" ? "كل العائلات" : "كل الأرقام";
+            } else {
+                const names = Array.from(checked).map(cb => cb.value);
+                selected.textContent = names.join("، ");
+            }
+        }
+
+        // Store scroll position before form submits
+        document.querySelectorAll("form").forEach(form => {
+            form.addEventListener("submit", () => {
+                localStorage.setItem("scrollY", window.scrollY);
+                localStorage.setItem("rowColoring", toggleColorsCheckbox.checked);
+            });
+        });
+
+        // Restore scroll position after reload
+        window.addEventListener("load", () => {
+            const y = localStorage.getItem("scrollY");
+            if (y !== null) window.scrollTo(0, parseInt(y));
+
+            const savedColoring = localStorage.getItem("rowColoring");
+            if (savedColoring !== null) {
+                toggleColorsCheckbox.checked = savedColoring === "true";
+                applyRowColoring(toggleColorsCheckbox.checked);
+            }
+        });
+
+        // toggle switch for row coloring
+        const toggleColorsCheckbox = document.getElementById('toggleColors');
+
+        function applyRowColoring(enabled) {
+            const rows = document.querySelectorAll('#voterTable tbody tr');
+            rows.forEach((row, index) => {
+                row.classList.forEach(cls => {
+                    if (cls.startsWith("row-color-")) row.classList.remove(cls);
+                });
+                if (enabled) {
+                    row.classList.add("row-color-" + (index % 5));
+                }
+            });
+        }
+
+        // Listen for user toggle
+        toggleColorsCheckbox.addEventListener('change', function () {
+            const nameFilter = nameInput.value.trim();
+            const regFilter = regInput.value.trim();
+
+            // Only apply checkbox-based coloring when not filtering
+            if (nameFilter === "" && regFilter === "") {
+                applyRowColoring(this.checked);
+            }
+        });
+
+        //  Run once on page load with checkbox unchecked
+        applyRowColoring(toggleColorsCheckbox.checked);
+
+        //for drop down list
+        document.addEventListener("DOMContentLoaded", function () {
+            document.querySelectorAll(".custom-dropdown").forEach(dropdown => {
+                const selected = dropdown.querySelector(".selected");
+                const options = dropdown.querySelector(".options");
+
+                // Toggle dropdown open/close
+                selected.addEventListener("click", function (e) {
+                    e.stopPropagation();
+                    document.querySelectorAll(".custom-dropdown").forEach(d => {
+                        if (d !== dropdown) d.classList.remove("open");
+                    });
+                    dropdown.classList.toggle("open");
+                });
+
+                // Make entire .option label clickable without closing dropdown
+                dropdown.querySelectorAll(".option").forEach(option => {
+                    option.addEventListener("click", function (e) {
+                        const checkbox = option.querySelector("input[type=checkbox]");
+                        if (!checkbox) return;
+
+                        // Toggle checkbox manually if the click was not directly on the input
+                        if (e.target !== checkbox) {
+                            checkbox.checked = !checkbox.checked;
+                            checkbox.dispatchEvent(new Event("change"));
+                        }
+
+                        e.stopPropagation(); // Keep dropdown open
+                    });
+                });
+
+                // Initialize default value (optional)
+                const firstOption = options.querySelector(".option");
+                if (firstOption && !selected.dataset.value) {
+                    selected.setAttribute("data-value", firstOption.dataset.value);
+                }
+            });
+
+            // Handle checkbox filtering and label updating
+            ["familyDropdown", "regDropdown"].forEach(dropdownId => {
+                const checkboxClass = dropdownId === "familyDropdown" ? "multi-check" : "reg-check";
+                const dropdown = document.getElementById(dropdownId);
+
+                dropdown.querySelectorAll(`input.${checkboxClass}`).forEach(cb => {
+                    cb.addEventListener("change", () => {
+                        updateSelectedText(dropdownId);
+                        filterTable();
+                    });
+                });
+            });
+
+            // ❗ Close all dropdowns when clicking outside
+            document.addEventListener("click", () => {
+                document.querySelectorAll(".custom-dropdown").forEach(d => d.classList.remove("open"));
+            });
+        });
+
+    </script>
+
+    
+</body>
+</html>
+
+<script type="text/javascript">
+    const allFullNames = JSON.parse('{{ all_full_names | tojson | safe }}');
+</script>
+
+<script>
+    let formToSubmit = null;
+
+    document.querySelectorAll('.delete-button').forEach(button => {
+        button.addEventListener('click', function () {
+            formToSubmit = this.closest('form');
+            document.getElementById('confirmModal').style.display = 'block';
+        });
+    });
+
+    document.getElementById('confirmYes').addEventListener('click', function () {
+        if (formToSubmit) {
+            // Create <input name="action" value="delete"> dynamically
+            const actionInput = document.createElement('input');
+            actionInput.type = 'hidden';
+            actionInput.name = 'action';
+            actionInput.value = 'delete';
+            formToSubmit.appendChild(actionInput);
+
+            formToSubmit.submit();  // Now the form includes action=delete
+            formToSubmit = null;
+        }
+        document.getElementById('confirmModal').style.display = 'none';
+    });
+
+    document.getElementById('confirmNo').addEventListener('click', function () {
+        formToSubmit = null;
+        document.getElementById('confirmModal').style.display = 'none';
+    });
+
+    // for editting duplicates
+    document.querySelectorAll('.edit-button').forEach(button => {
+        button.addEventListener('click', function () {
+            const form = this.closest('form');
+            const row = this.closest('tr');
+            const fullName = form.querySelector('input[name="full_name"]').value;
+            const reg = form.querySelector('input[name="reg_number"]').value;
+            const rowIndex = form.querySelector('input[name="row_index"]').value;
+
+            // Find next available unique name
+            let suggestedName = fullName;
+            let suffix = 1;
+            while (allFullNames.includes(suggestedName)) {
+                suggestedName = `${fullName}-${suffix}`;
+                suffix++;
+            }
+
+            document.querySelectorAll('.edit-form-row').forEach(el => el.remove());
+
+            const editRow = document.createElement('tr');
+            editRow.classList.add('edit-form-row');
+            editRow.innerHTML = `
+                <td colspan="${row.cells.length}">
+                    <form method="POST">
+                        <input type="hidden" name="row_index" value="${rowIndex}">
+                        <input type="hidden" name="action" value="edit">
+                        الاسم الثلاثي الجديد:
+                        <input type="text" name="new_name" value="${suggestedName}">
+                        <input type="hidden" name="new_reg" value="${reg}">
+                        <button type="submit" style="color:green; cursor: pointer;">✔️ حفظ التعديلات</button>
+                    </form>
+                </td>
+            `;
+            row.parentNode.insertBefore(editRow, row.nextSibling);
+        });
+    });
+</script>

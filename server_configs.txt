@@ -1,0 +1,19 @@
+1- venv\Scripts\activate
+
+2- python main_server.py
+
+3- pyinstaller --noconfirm --onefile --add-data "templates;templates" main_server.py
+
+4- How to connect other laptop:
+
+    a-  Main PC (Server):
+        IP address: 192.168.1.1
+        Subnet mask: 255.255.255.0
+        Leave gateway and DNS empty
+
+    b-  Client Laptop:
+        IP address: 192.168.1.2
+        Subnet mask: 255.255.255.0
+        Leave gateway and DNS empty
+
+    c-  run server on http://192.168.1.1:5000 on both devices

@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<script>
+    setInterval(() => {
+        window.location.reload();
+    }, 10000);
+</script>
+<head>
+    <meta charset="UTF-8">
+    <title>Admin Dashboard</title>
+    <style>
+        body { font-family: Arial; margin: 20px; background-color: #f9f9f9; }
+        h2 { color: #1E4D92; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #999; padding: 10px; text-align: center; }
+        th { background-color: #f0f0f0; }
+        .highlight { font-weight: bold; }
+
+        .action-button {
+            padding: 8px 16px;
+            background-color: white;
+            color: black;
+            border: 1px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-button:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+
+   <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+        <button onclick="location.reload()" class="action-button">🔄 تحديث الآن</button>
+
+        <a href="{{ url_for('logout') }}">
+            <button class="action-button">🚪 تسجيل الخروج</button>
+        </a>
+
+    </div>
+
+    <a href="{{ url_for('all_rooms_view') }}">
+        <button class="action-button">🗂️ عرض كل الغرف مجتمعة</button>
+    </a>
+
+    <h2>📊 لوحة التحكم - ملخص التصويت</h2>
+
+    <p><strong>إجمالي المسجلين:</strong> {{ total_voters }}</p>
+    <p><strong>إجمالي من صوّت:</strong> {{ total_voted }}</p>
+    <p><strong>نسبة التصويت العامة:</strong> {{ overall_percent }}%</p>
+
+    <table>
+        <thead>
+            <tr>
+                <th>رقم الغرفة</th>
+                <th>عدد الناخبين</th>
+                <th>من صوّت</th>
+                <th>النسبة</th>
+                <th>الإجراء</th>
+                <th>الغرفة</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for room in summary %}
+                <tr>
+                    <td>{{ room.room_id }}</td>
+                    <td>{{ room.total }}</td>
+                    <td>{{ room.voted }}</td>
+                    <td>{{ room.percent }}%</td>
+                    <td>
+                        <a href="/room-details/{{ room.room_id }}">
+                            <button class="action-button">📈 عرض التفاصيل</button>
+                        </a>
+                    </td>
+                    <td>
+                        <a href="{{ url_for('room_view', room_id=room.room_id) }}">
+                            <button class="action-button">🔎 عرض الغرفة</button>
+                        </a>
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+
+    <h3>📊 إحصائيات العائلات</h3>
+    <table>
+        <thead>
+            <tr>
+            <th>العائلة</th>
+            <th>الإجمالي</th>
+            <th>✅ صوّت</th>
+            <th>❌ لم يصوّت</th>
+            <th>نسبة التصويت</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for item in family_stats %}
+            <tr>
+            <td>{{ item.family }}</td>
+            <td>{{ item.total }}</td>
+            <td>{{ item.voted }}</td>
+            <td>{{ item.not_voted }}</td>
+            <td>{{ item.percent }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

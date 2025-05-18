@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <title>Room {{ room_id }} Full Info</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial; padding: 20px; background: #f9f9f9; }
+        canvas { max-width: 400px; margin: 20px auto; display: block; }
+
+        .action-button {
+            padding: 8px 16px;
+            background-color: white;
+            color: black;
+            border: 1px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-button:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
+    </style>
+</head>
+<body>
+
+   <div style="display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap;">
+        <button onclick="location.reload()" class="action-button">🔄 تحديث الآن</button>
+
+        {% if role == "admin" %}
+            <a href="{{ url_for('dashboard') }}">
+                <button class="action-button">🏠 لوحة التحكم</button>
+            </a>
+        {% endif %}
+
+        <a href="{{ url_for('logout') }}">
+            <button class="action-button">🚪 تسجيل الخروج</button>
+        </a>
+
+    </div>
+
+    <h2>📊 تفاصيل التصويت - الغرفة رقم {{ room_id }}</h2>
+
+    <p><strong>الإجمالي:</strong> {{ total }}</p>
+    <p><strong>صوّت:</strong> {{ voted }}</p>
+    <p><strong>لم يصوّت:</strong> {{ not_voted }}</p>
+
+    <canvas id="voteChart"></canvas>
+
+    <script>
+        const ctx = document.getElementById('voteChart').getContext('2d');
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['✅ صوّت', '❌ لم يصوّت'],
+                datasets: [{
+                    data: JSON.parse('{{ [voted, not_voted] | tojson | safe }}'),
+                    backgroundColor: ['#4caf50', '#f44336']
+                }]
+            },
+            options: {
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    </script>
+
+    <h3 style="margin-top:40px;">📋 نسب التصويت حسب العائلة:</h3>
+
+    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color:#e0e0e0;">
+                <th style="padding: 10px; border: 1px solid #ccc;">العائلة</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">الإجمالي</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">صوّت</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">لم يصوّت</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">النسبة (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for f in family_stats %}
+            <tr style="text-align: center;">
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ f.name }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ f.total }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ f.voted }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ f.not_voted }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ f.percent }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <canvas id="familyChart" style="width:100%; max-width:1200px; height:600px; margin-top:40px;"></canvas>
+
+    <script>
+        const familyLabels = JSON.parse('{{ family_stats | map(attribute="name") | list | tojson | safe }}');
+        const familyPercents = JSON.parse('{{ family_stats | map(attribute="percent") | list | tojson | safe }}');
+
+        const ctxBar = document.getElementById('familyChart').getContext('2d');
+        new Chart(ctxBar, {
+            type: 'bar',
+            data: {
+                labels: familyLabels,
+                datasets: [{
+                    label: 'نسبة التصويت (%)',
+                    data: familyPercents,
+                    backgroundColor: '#1E88E5'
+                }]
+            },
+            options: {
+                scales: {
+                    x: {
+                        beginAtZero: true,
+                        max: 100
+                    }
+                },
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                }
+            }
+        });
+    </script>
+
+    <h3 style="margin-top: 60px;">📋 نسب التصويت حسب رقم القيد (كل رقم على حدة):</h3>
+
+    <table style="width:100%; border-collapse: collapse; margin-top: 10px;">
+        <thead>
+            <tr style="background-color:#f9f9f9;">
+                <th style="padding: 10px; border: 1px solid #ccc;">رقم القيد</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">الإجمالي</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">صوّت</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">لم يصوّت</th>
+                <th style="padding: 10px; border: 1px solid #ccc;">النسبة (%)</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in reg_number_stats %}
+            <tr style="text-align: center;">
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ r.reg_number }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ r.total }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ r.voted }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ r.not_voted }}</td>
+                <td style="padding: 8px; border: 1px solid #ccc;">{{ r.percent }}%</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>
