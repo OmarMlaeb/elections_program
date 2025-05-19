@@ -10,7 +10,6 @@ import sys
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
-print(secrets.token_hex(32))
 
 # Handle bundled app vs normal script
 if getattr(sys, 'frozen', False):
@@ -216,17 +215,19 @@ def room_view(room_id):
     total = len(df)
     percent = (voted / total) * 100 if total else 0
 
-    # Detect duplicates based on all columns
-    duplicate_mask = df.duplicated(keep=False)
+    # Detect duplicates excluding the vote column
+    columns_to_check = df.columns[:-2]  # Exclude the last two columns
+    duplicate_mask = df.duplicated(subset=columns_to_check, keep=False)
     duplicates = df[duplicate_mask]
     duplicate_count = len(duplicates)
 
-    # Create a set of tuples to flag in HTML
+    # Set of duplicate keys for template use (joined string of values excluding 'صوّت؟')
     duplicate_keys = set(
-        "|".join(row.astype(str).values) for _, row in duplicates.iterrows()
+        "|".join([str(row[col]) for col in columns_to_check])
+        for _, row in duplicates.iterrows()
     )
 
-    # Create row-level duplicates with row index as "الرقم"
+    # Duplicate rows for display (with row index)
     duplicate_rows = [
         {**row.to_dict(), "الرقم": idx}
         for idx, row in df.iterrows()
@@ -449,17 +450,19 @@ def all_rooms_view():
     full_df["الإسم الثلاثي"] = full_df["الإسم الثلاثي"].astype(str).str.strip()
     full_df["رقم القيد"] = full_df["رقم القيد"].astype(str).str.strip()
 
-    # Detect duplicates based on all columns
-    duplicate_mask = full_df.duplicated(keep=False)
+    # Detect duplicates excluding the vote column
+    columns_to_check = full_df.columns[:-2]  # Exclude the last two columns
+    duplicate_mask = full_df.duplicated(subset=columns_to_check, keep=False)
     duplicates = full_df[duplicate_mask]
     duplicate_count = len(duplicates)
 
-    # Create a set of tuples to flag in HTML
+    # Set of duplicate keys for template use (joined string of values excluding 'صوّت؟')
     duplicate_keys = set(
-        "|".join(row.astype(str).values) for _, row in duplicates.iterrows()
+        "|".join([str(row[col]) for col in columns_to_check])
+        for _, row in duplicates.iterrows()
     )
 
-    # Create row-level duplicates with row index as "الرقم"
+    # Duplicate rows for display (with row index)
     duplicate_rows = [
         {**row.to_dict(), "الرقم": idx}
         for idx, row in full_df.iterrows()

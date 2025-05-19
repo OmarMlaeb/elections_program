@@ -265,8 +265,13 @@
         </thead>
         <tbody>
             {% for row in df %}
-                {% set row_tuple = row.values() | map('string') | list %}
-                <tr class="row-color-{{ loop.index0 % 5 }} {% if row_tuple | join('|') in duplicate_keys %}duplicate{% endif %}">
+                {% set keys = row.keys() | list %}
+                {% set ns = namespace(key_parts=[]) %}
+                {% for i in range(keys | length - 2) %}
+                    {% set ns.key_parts = ns.key_parts + [row[keys[i]] | string] %}
+                {% endfor %}
+                {% set row_key = ns.key_parts | join('|') %}
+                <tr class="row-color-{{ loop.index0 % 5 }} {% if row_key in duplicate_keys %}duplicate{% endif %}">
                     <form method="POST">
                         <td>{{ row["الغرفة"] }}</td>
                         <td data-column="الإسم الثلاثي">{{ row["الإسم الثلاثي"] }}</td>
