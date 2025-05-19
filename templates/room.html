@@ -24,6 +24,23 @@
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
             transform: translateY(-1px);
         }
+
+        .confirm-add {
+            margin-top: 5px;
+            padding: 8px 16px;
+            background-color: white;
+            color: green;
+            border: 1px solid black;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .confirm-add:hover {
+            background-color: #f0f0f0;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+            transform: translateY(-1px);
+        }
     
         /* Success message (vote) */
         .success {
@@ -121,6 +138,17 @@
             <button id="confirmNo" style="margin-right:10px; background-color:#ccc; padding:8px 16px; border:none; border-radius:4px; cursor: pointer;">إلغاء</button>
         </div>
     </div>
+</div>
+
+<!-- Global Confirmation Modal -->
+<div id="actionConfirmModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); z-index:9999;">
+  <div style="background:#fff; padding:20px; width:90%; max-width:400px; margin:100px auto; border-radius:8px; text-align:center;">
+    <p id="confirmMessage" style="font-size:18px; color:#333;">هل تريد تأكيد العملية؟</p>
+    <div style="margin-top:20px;">
+        <button id="confirmActionYes" style="background-color:green; color:white; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">نعم</button>
+        <button id="confirmActionNo" style="margin-right:10px; background-color:#ccc; padding:8px 16px; border:none; border-radius:4px; cursor:pointer;">إلغاء</button>
+    </div>
+  </div>
 </div>
 
 <body>
@@ -247,6 +275,20 @@
         </div>
     </div>
 
+    {% if role == "admin" %}
+        <h3>➕ إضافة سجل جديد:</h3>
+        <form method="POST">
+            {% for key in df[0].keys() %}
+                {% if key != "صوّت؟" %}
+                    <label>{{ key }}:</label>
+                    <input type="text" name="{{ key }}" required>
+                {% endif %}
+            {% endfor %}
+            <input type="hidden" name="action" value="add_row">
+            <button type="submit" class="confirm-add">✔️ إضافة</button>
+        </form>
+    {% endif %}
+
     <h3>لائحة الناخبين:</h3>
     <table id="voterTable">
         <thead>
@@ -257,39 +299,50 @@
                 <th>الإجراء</th> <!-- New column for voting button -->
             </tr>
         </thead>
-        <tbody>
-            {% for row in df %}
-                {% set keys = row.keys() | list %}
-                {% set ns = namespace(key_parts=[]) %}
-                {% for i in range(keys | length - 2) %}
-                    {% set ns.key_parts = ns.key_parts + [row[keys[i]] | string] %}
-                {% endfor %}
-                {% set row_key = ns.key_parts | join('|') %}
-                <tr class="row-color-{{ loop.index0 % 5 }} {% if row_key in duplicate_keys %}duplicate{% endif %}">
-                    <form method="POST">
+            <tbody>
+                {% for row in df %}
+                    {% set keys = row.keys() | list %}
+                    {% set ns = namespace(key_parts=[]) %}
+                    {% for i in range(keys | length - 2) %}
+                        {% set ns.key_parts = ns.key_parts + [row[keys[i]] | string] %}
+                    {% endfor %}
+                    {% set row_key = ns.key_parts | join('|') %}
+                    {% set form_id = "form-" ~ loop.index0 %}
+                    <tr class="row-color-{{ loop.index0 % 5 }} {% if row_key in duplicate_keys %}duplicate{% endif %}">
                         {% for key, value in row.items() %}
-                            <td data-column="{{ key }}">{{ value }}</td>
+                            <td data-column="{{ key }}">
+                                {% if role == "admin" and key != "صوّت؟" %}
+                                    <input type="text" name="{{ key }}" value="{{ value }}" data-original="{{ value }}" form="{{ form_id }}" style="width:100px;">
+                                {% else %}
+                                    {{ value }}
+                                {% endif %}
+                            </td>
                         {% endfor %}
-                    
-                        <!-- Hidden fields to identify the person and their current vote status -->
-                        <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
-                        <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
-                        <input type="hidden" name="current_status" value="{{ row['صوّت؟'] }}">
-                        <input type="hidden" name="action" value="vote">
-                    
+
                         <td>
-                            <button type="submit" style=" cursor: pointer;">
+                            <form id="{{ form_id }}" method="POST">
+                                <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
+                                <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
+                                <input type="hidden" name="current_status" value="{{ row['صوّت؟'] }}">
+                                <input type="hidden" name="row_index" value="{{ loop.index0 }}">
+                            </form>
+
+                            <button type="submit" name="action" value="vote" form="{{ form_id }}" style="cursor: pointer;">
                                 {% if row['صوّت؟'] == '✅' %}
                                     ❌ إلغاء
                                 {% else %}
                                     ✅ تصويت
                                 {% endif %}
                             </button>
+
+                            {% if role == "admin" %}
+                                <button class="confirm-edit" data-form="{{ form_id }}" style="color:blue; cursor: pointer;">✏️ تعديل</button>
+                                <button class="confirm-delete" data-form="{{ form_id }}" style="color:red; cursor: pointer;">🗑️ حذف</button>
+                            {% endif %}
                         </td>
-                    </form>                    
-                </tr>
-            {% endfor %}
-        </tbody>
+                    </tr>
+                {% endfor %}
+            </tbody>
     </table>
 
     {% if duplicate_rows %}
@@ -553,6 +606,90 @@
 
     </script>
 
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let currentForm = null;
+        const modal = document.getElementById("actionConfirmModal");
+        const message = document.getElementById("confirmMessage");
+        let pendingAction = ""; // NEW
+
+        function showModal(text, form, actionName) {
+            currentForm = form;
+            pendingAction = actionName;
+            message.textContent = text;
+            modal.style.display = "block";
+        }
+
+        function setupConfirmation(selector, text, actionName) {
+            document.querySelectorAll(selector).forEach(button => {
+            button.addEventListener("click", function (e) {
+                e.preventDefault();
+                const formId = this.getAttribute("data-form");
+                const form = document.getElementById(formId);
+                showModal(text, form, actionName);
+            });
+            });
+        }
+
+        document.querySelectorAll(".confirm-edit").forEach(button => {
+            button.addEventListener("click", function (e) {
+                e.preventDefault();
+                const formId = this.getAttribute("data-form");
+                const form = document.getElementById(formId);
+                const inputs = document.querySelectorAll(`input[form="${form.id}"]`);
+
+                let hasChanges = false;
+                inputs.forEach(input => {
+                    const original = input.getAttribute("data-original") || "";
+                    const current = input.value || "";
+                    if (original.trim() !== current.trim()) {
+                        hasChanges = true;
+                    }
+                });
+
+                if (!hasChanges) {
+                    // Show alternate modal for no changes
+                    const warnModal = document.createElement("div");
+                    warnModal.style.cssText = `
+                        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+                        background: rgba(0, 0, 0, 0.5); display: flex;
+                        align-items: center; justify-content: center; z-index: 9999;
+                    `;
+                    warnModal.innerHTML = `
+                        <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                            <p style="font-size: 18px;">⚠️ لم تقم بأي تعديل</p>
+                            <button style="margin-top: 10px; padding: 8px 16px;" onclick="this.parentNode.parentNode.remove()">حسنًا</button>
+                        </div>
+                    `;
+                    document.body.appendChild(warnModal);
+                } else {
+                    showModal("هل تريد تعديل هذا السجل؟", form, "edit_row");
+                }
+            });
+        });
+
+        document.getElementById("confirmActionYes").onclick = () => {
+            if (currentForm) {
+            // Inject the <input name="action" value="..."> before submit
+            const actionInput = document.createElement("input");
+            actionInput.type = "hidden";
+            actionInput.name = "action";
+            actionInput.value = pendingAction;
+            currentForm.appendChild(actionInput);
+
+            currentForm.submit();
+            }
+        };
+
+        document.getElementById("confirmActionNo").onclick = () => {
+            modal.style.display = "none";
+            currentForm = null;
+        };
+
+        setupConfirmation(".confirm-add", "هل تريد إضافة هذا السجل؟", "add_row");
+        setupConfirmation(".confirm-delete", "⚠️ هل أنت متأكد من حذف هذا السجل؟", "delete");
+        });
+</script>
     
 </body>
 </html>

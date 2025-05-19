@@ -98,125 +98,110 @@ def login():
 
     return render_template("login.html", error=error)
 
-
-### room page per id ###
 @app.route("/room<int:room_id>", methods=["GET", "POST"])
 @login_required
 def room_view(room_id):
-
-    # Restrict room users to only their assigned room
-    # Only restrict if user is a room user
     if session.get("role") == "room":
         if room_id not in session.get("room_ids", []):
             flash("❌ غير مصرح لك بالدخول إلى هذه الغرفة")
             return redirect(url_for("login"))
-        
+
     filename = f"room{room_id}.xlsx"
     filepath = os.path.join(DATA_DIR, filename)
-
-    # Load Excel
     df = pd.read_excel(filepath)
     df = df.sort_values(by="رقم القيد", key=lambda col: col.astype(str).str.zfill(10))
 
-    # Ensure 'صوّت؟' column exists and is of string type
     if 'صوّت؟' not in df.columns:
         df['صوّت؟'] = ""
     else:
         df['صوّت؟'] = df['صوّت؟'].astype(str)
 
-    # Replace empty/NaN or invalid values with ❌
-    df['صوّت؟'] = df['صوّت؟'].replace(["", "nan", "NaN", "None", "null"], "❌")
-    df['صوّت؟'] = df['صوّت؟'].fillna("❌")
-
-    # Save if newly added column
-    if 'صوّت؟' not in pd.read_excel(filepath).columns:
-        df.to_excel(filepath, index=False)
-        
+    df['صوّت؟'] = df['صوّت؟'].replace(["", "nan", "NaN", "None", "null"], "❌").fillna("❌")
 
     message = ""
     message_class = ""
+
     if request.method == "POST":
         action = request.form.get("action")
+
         if action == "vote":
             reg_number = str(request.form.get("reg_number")).strip()
             full_name = str(request.form.get("full_name")).strip()
             current_status = request.form.get("current_status") or ""
-            current_status = current_status.strip()
-
             match = df[
                 (df["رقم القيد"].astype(str) == reg_number) &
                 (df["الإسم الثلاثي"].astype(str).str.strip() == full_name)
             ]
             if not match.empty:
-                # Toggle logic
                 new_status = "" if current_status == "✅" else "✅"
                 df.loc[match.index, "صوّت؟"] = new_status
+                df = df.sort_values(by="رقم القيد", key=lambda col: col.astype(str).str.zfill(10))
                 df.to_excel(filepath, index=False)
                 action_text = "إلغاء التصويت" if current_status == "✅" else "تسجيل التصويت"
                 voter_info = match.iloc[0].to_dict()
-                voter_info.pop("صوّت؟", None)  # Remove voting status from display
-
+                voter_info.pop("صوّت؟", None)
                 info_str = " | ".join(f"{k}: {v}" for k, v in voter_info.items())
                 message = f"{action_text}:\n{info_str}"
-
-                # Set a CSS class to color the message
                 message_class = "success" if new_status == "✅" else "error"
-
             else:
                 message = f"المطابقة غير موجودة: {full_name} / {reg_number}"
 
-        elif action == "delete":
-            reg_number = str(request.form.get("reg_number")).strip()
-            full_name = str(request.form.get("full_name")).strip()
+        elif session.get("role") == "admin" and action == "delete":
             row_index = request.form.get("row_index")
-
             if row_index is not None:
                 row_index = int(row_index)
                 if 0 <= row_index < len(df):
-                    df = df.drop(index=row_index)
-                    df.reset_index(drop=True, inplace=True)
+                    df = df.drop(index=row_index).reset_index(drop=True)
+                    df = df.sort_values(by="رقم القيد", key=lambda col: col.astype(str).str.zfill(10))
                     df.to_excel(filepath, index=False)
-                    message = f"✅ تم حذف السجل: {full_name} / {reg_number}"
+                    message = "✅ تم حذف السجل بنجاح"
                     message_class = "success"
+                    return redirect(url_for("room_view", room_id=room_id))
                 else:
-                    message = "❌ فشل الحذف: رقم الصف غير صحيح"
-                    message_class = "error"
-            else:
-                message = "❌ فشل الحذف: لم يتم إرسال رقم الصف"
-                message_class = "error"
-
-        elif action == "edit":
-            row_index = request.form.get("row_index")
-            new_name = request.form.get("new_name")
-
-            if row_index is not None:
-                row_index = int(row_index)
-                if 0 <= row_index < len(df):
-                    df.at[row_index, "الإسم الثلاثي"] = new_name
-                    df.to_excel(filepath, index=False)
-                    message = f"✅ تم تعديل الاسم إلى: {new_name}"
-                    message_class = "success"
-                else:
-                    message = "❌ رقم الصف غير صالح"
+                    message = "❌ رقم الصف غير صحيح"
                     message_class = "error"
 
-    # Refresh after POST
+        elif session.get("role") == "admin" and action == "edit_row":
+            row_index = int(request.form.get("row_index"))
+            for col in df.columns:
+                if col in request.form:
+                    value = request.form.get(col)
+                    dtype = df[col].dtype
+
+                    # Optional: Handle int/float compatibility
+                    try:
+                        if pd.api.types.is_integer_dtype(dtype):
+                            df.at[row_index, col] = int(value)
+                        elif pd.api.types.is_float_dtype(dtype):
+                            df.at[row_index, col] = float(value)
+                        else:
+                            df.at[row_index, col] = value
+                    except:
+                        df.at[row_index, col] = value  # fallback
+
+            df = df.sort_values(by="رقم القيد", key=lambda col: col.astype(str).str.zfill(10))
+            df.to_excel(filepath, index=False)
+            message = "✏️ تم تعديل السجل بنجاح"
+            message_class = "success"
+            return redirect(url_for("room_view", room_id=room_id))
+
+        elif session.get("role") == "admin" and action == "add_row":
+            new_row = {col: request.form.get(col, '') for col in df.columns}
+            df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+            df = df.sort_values(by="رقم القيد", key=lambda col: col.astype(str).str.zfill(10))
+            df.to_excel(filepath, index=False)
+            message = "➕ تم إضافة السجل بنجاح"
+            message_class = "success"
+            return redirect(url_for("room_view", room_id=room_id))
+
     df = pd.read_excel(filepath)
+    df['صوّت؟'] = df['صوّت؟'].astype(str).replace(["", "nan", "NaN", "None", "null"], "❌").fillna("❌")
 
-    if 'صوّت؟' not in df.columns:
-        df['صوّت؟'] = ""
-    else:
-        df['صوّت؟'] = df['صوّت؟'].astype(str)
-
-    df['صوّت؟'] = df['صوّت؟'].replace(["", "nan", "NaN", "None", "null"], "❌")
-    df['صوّت؟'] = df['صوّت؟'].fillna("❌")
-
-    voted = df["صوّت؟"].notna().sum()
+    voted = df["صوّت؟"].eq("✅").sum()
     total = len(df)
     percent = (voted / total) * 100 if total else 0
 
-    # Detect duplicates excluding the vote column
-    columns_to_check = df.columns[:-2]  # Exclude the last two columns
+    columns_to_check = df.columns[:-2] # Exclude the last two columns
     duplicate_mask = df.duplicated(subset=columns_to_check, keep=False)
     duplicates = df[duplicate_mask]
     duplicate_count = len(duplicates)
@@ -255,7 +240,6 @@ def room_view(room_id):
         unique_registrations=unique_registrations,
         role=session.get("role")
     )
-
 
 ### dashboard page ###
 @app.route("/dashboard")
