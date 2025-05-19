@@ -195,7 +195,10 @@ def room_view(room_id):
             return redirect(url_for("room_view", room_id=room_id))
 
     df = pd.read_excel(filepath)
-    df['صوّت؟'] = df['صوّت؟'].astype(str).replace(["", "nan", "NaN", "None", "null"], "❌").fillna("❌")
+    if 'صوّت؟' not in df.columns:
+        df['صوّت؟'] = "❌"
+    else:
+        df['صوّت؟'] = df['صوّت؟'].astype(str).replace(["", "nan", "NaN", "None", "null"], "❌").fillna("❌")
 
     voted = df["صوّت؟"].eq("✅").sum()
     total = len(df)
@@ -418,10 +421,20 @@ def all_rooms_view():
     ])
 
     for filename in room_files:
-        room_id = int(re.findall(r"\d+", filename)[0])
-        df = pd.read_excel(os.path.join(DATA_DIR, filename))
-        df["الغرفة"] = room_id  # add room column
-        combined_data.append(df)
+        filepath = os.path.join(DATA_DIR, filename)
+        try:
+            df = pd.read_excel(filepath)
+
+            if "صوّت؟" not in df.columns:
+                df["صوّت؟"] = "❌"
+                df.to_excel(filepath, index=False)
+
+            df["الغرفة"] = int(re.findall(r"\d+", filename)[0])
+            combined_data.append(df)
+
+        except Exception as e:
+            print(f"⚠️ Skipped {filename}: {e}")
+            continue
 
     if not combined_data:
         return "⚠️ لا توجد بيانات.", 404
@@ -540,4 +553,4 @@ def all_rooms_view():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5555)
+    app.run(host="0.0.0.0", port=7777)
