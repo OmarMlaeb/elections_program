@@ -197,8 +197,7 @@ def room_view(room_id):
     df = pd.read_excel(filepath)
     if 'صوّت؟' not in df.columns:
         df['صوّت؟'] = "❌"
-    else:
-        df['صوّت؟'] = df['صوّت؟'].astype(str).replace(["", "nan", "NaN", "None", "null"], "❌").fillna("❌")
+        df.to_excel(filepath, index=False)
 
     voted = df["صوّت؟"].eq("✅").sum()
     total = len(df)
