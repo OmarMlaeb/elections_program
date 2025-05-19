@@ -449,9 +449,22 @@ def all_rooms_view():
     full_df["الإسم الثلاثي"] = full_df["الإسم الثلاثي"].astype(str).str.strip()
     full_df["رقم القيد"] = full_df["رقم القيد"].astype(str).str.strip()
 
+    # Detect duplicates based on all columns
     duplicate_mask = full_df.duplicated(keep=False)
-    duplicate_rows = full_df[duplicate_mask].copy()
-    duplicate_count = len(duplicate_rows)
+    duplicates = full_df[duplicate_mask]
+    duplicate_count = len(duplicates)
+
+    # Create a set of tuples to flag in HTML
+    duplicate_keys = set(
+        "|".join(row.astype(str).values) for _, row in duplicates.iterrows()
+    )
+
+    # Create row-level duplicates with row index as "الرقم"
+    duplicate_rows = [
+        {**row.to_dict(), "الرقم": idx}
+        for idx, row in full_df.iterrows()
+        if duplicate_mask.iloc[idx]
+    ]
 
     # Unique filters
     unique_families = sorted(full_df["العائلة"].unique())
@@ -529,7 +542,8 @@ def all_rooms_view():
                            unique_families=unique_families,
                            unique_registrations=unique_regs,
                            duplicate_count=duplicate_count,
-                           duplicate_rows=duplicate_rows.to_dict(orient="records"),
+                           duplicate_keys=duplicate_keys,
+                           duplicate_rows=duplicate_rows,
                            all_full_names=full_df["الإسم الثلاثي"].tolist(),
                            total=total_all,
                            voted=voted_all,
@@ -539,4 +553,4 @@ def all_rooms_view():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=5555)

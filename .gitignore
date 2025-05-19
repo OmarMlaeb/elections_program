@@ -1,0 +1,44 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.env/
+.venv/
+ENV/
+env/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+
+# VS Code / PyCharm
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Excel or data files
+*.xlsx
+*.xls
+*.csv
+
+# Local logs or temp
+*.log
+*.tmp
+
+# Flask instance folder and compiled files
+instance/
+*.db
+*.sqlite3
+
+# PyInstaller or packaging
+dist/
+build/
+*.spec
+
+# macOS system files
+*.DS_Store

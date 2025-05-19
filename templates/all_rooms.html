@@ -265,7 +265,8 @@
         </thead>
         <tbody>
             {% for row in df %}
-                <tr class="row-color-{{ loop.index0 % 5 }} {% if (row['الإسم الثلاثي'] | string, row['رقم القيد'] | string) in duplicate_keys %}duplicate{% endif %}">
+                {% set row_tuple = row.values() | map('string') | list %}
+                <tr class="row-color-{{ loop.index0 % 5 }} {% if row_tuple | join('|') in duplicate_keys %}duplicate{% endif %}">
                     <form method="POST">
                         <td>{{ row["الغرفة"] }}</td>
                         <td data-column="الإسم الثلاثي">{{ row["الإسم الثلاثي"] }}</td>
@@ -318,6 +319,7 @@
                         {% endfor %}
                         <td>
                             <form method="POST" class="delete-form" data-fullname="{{ row['الإسم الثلاثي'] }}" data-reg="{{ row['رقم القيد'] }}">
+                                <input type="hidden" name="room_id" value="{{ row['الغرفة'] }}">
                                 <input type="hidden" name="row_index" value="{{ row['الرقم'] }}">
                                 <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
                                 <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
@@ -602,7 +604,7 @@
             const row = this.closest('tr');
             const fullName = form.querySelector('input[name="full_name"]').value;
             const reg = form.querySelector('input[name="reg_number"]').value;
-            const roomId = form.querySelector('input[name="room_id"]').value;
+            const rowIndex = form.querySelector('input[name="row_index"]').value;
 
             // Find next available unique name
             let suggestedName = fullName;
@@ -618,18 +620,14 @@
             editRow.classList.add('edit-form-row');
             editRow.innerHTML = `
                 <td colspan="${row.cells.length}">
-                    <form method="POST" class="delete-form"
-                        data-fullname="{{ row['الإسم الثلاثي'] }}"
-                        data-reg="{{ row['رقم القيد'] }}"
-                        data-room="{{ row['الغرفة'] }}">
-                        
-                        <input type="hidden" name="row_index" value="{{ row['الرقم'] }}">
-                        <input type="hidden" name="reg_number" value="{{ row['رقم القيد'] }}">
-                        <input type="hidden" name="full_name" value="{{ row['الإسم الثلاثي'] }}">
-                        <input type="hidden" name="room_id" value="{{ row['الغرفة'] }}">
-                        
-                        <button type="button" class="delete-button" style="color:red; cursor: pointer;">🗑️ حذف</button>
-                        <button type="button" class="edit-button" style="color:blue; margin-right: 8px; cursor: pointer;">✏️ تمييز</button>
+                    <form method="POST">
+                        <input type="hidden" name="row_index" value="${rowIndex}">
+                        <input type="hidden" name="room_id" value="${form.querySelector('input[name=\"room_id\"]').value}">
+                        <input type="hidden" name="action" value="edit">
+                        الاسم الثلاثي الجديد:
+                        <input type="text" name="new_name" value="${suggestedName}">
+                        <input type="hidden" name="new_reg" value="${reg}">
+                        <button type="submit" style="color:green; cursor: pointer;">✔️ حفظ التعديلات</button>
                     </form>
                 </td>
             `;
